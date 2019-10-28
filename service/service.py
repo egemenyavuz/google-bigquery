@@ -5,10 +5,14 @@ from flask import Flask, request, Response, abort
 from google.cloud import bigquery
 from sesamutils import VariablesConfig, sesam_logger
 from sesamutils.flask import serve
+import os
 
 app = Flask(__name__)
 
-required_env_vars = ["GOOGLE_APPLICATION_CREDENTIALS_CONTENT", "QUERY_CONFIGS"]
+# set GOOGLE_APPLICATION_CREDENTIALS envvar for GCP authentication
+os.environ['GOOGLE_APPLICATION_CREDENTIALS'] = 'service_account_key.json'
+
+required_env_vars = ["GOOGLE_APPLICATION_CREDENTIALS", "GOOGLE_APPLICATION_CREDENTIALS_CONTENT", "QUERY_CONFIGS"]
 optional_env_vars = [("DEFAULT_PAGE_SIZE", 100)]
 
 env_config = VariablesConfig(required_env_vars, optional_env_vars)
@@ -24,11 +28,8 @@ env_config.DEFAULT_PAGE_SIZE = int(env_config.DEFAULT_PAGE_SIZE)
 logger.info('started up with\n\tQUERY_CONFIGS:{}'.format(env_config.QUERY_CONFIGS))
 
 # write out service config from env var to known file
-GOOGLE_APPLICATION_CREDENTIALS = 'service_account_key.json'
-with open(GOOGLE_APPLICATION_CREDENTIALS, "wb") as out_file:
+with open(env_config.GOOGLE_APPLICATION_CREDENTIALS, "wb") as out_file:
     out_file.write(env_config.GOOGLE_APPLICATION_CREDENTIALS_CONTENT.encode())
-
-
 
 def stream_rows(query_key, since, limit, page_size):
     is_first_yield = True
@@ -46,7 +47,7 @@ def stream_rows(query_key, since, limit, page_size):
     job_config.query_parameters = query_params
 
     # Explicitly use service account credentials by specifying the private key file
-    client = bigquery.Client().from_service_account_json(GOOGLE_APPLICATION_CREDENTIALS)
+    client = bigquery.Client().from_service_account_json(env_config.GOOGLE_APPLICATION_CREDENTIALS)
     query_job = client.query(query, job_config=job_config)  # API request
     rows = query_job.result(page_size=page_size, max_results=limit)  # Waits for query to finish
 
